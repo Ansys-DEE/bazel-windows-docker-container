@@ -1,0 +1,1 @@
+docker run -it bazel-windows-container:0.0.2

@@ -1,41 +1,59 @@
-# Heavily based on https://github.com/StefanScherer/dockerfiles-windows/ images.
-# Combines the node nano image with the Bazel Prerequisites (https://docs.bazel.build/versions/master/install-windows.html).
-# msys install taken from https://github.com/StefanScherer/dockerfiles-windows/issues/30
-# VS redist install taken from https://github.com/StefanScherer/dockerfiles-windows/blob/master/apache/Dockerfile
+FROM mcr.microsoft.com/windows/servercore:ltsc2019
 
-# Use a full featured Windows Server to setup files needed for the real image.
-FROM microsoft/windowsservercore:1803 as download
+# Install Chocolatey
+ENV chocolateyVersion=1.4.0
+RUN powershell -NoProfile -ExecutionPolicy Bypass -Command "iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))" && SET "PATH=%PATH%;%ALLUSERSPROFILE%\chocolatey\bin"
 
-SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';"]
+# Install msys2 (possibly included with choco bazel install?)
+RUN choco install -y msys2
 
-# Install 7zip to extract msys2
-RUN Invoke-WebRequest -UseBasicParsing "https://www.7-zip.org/a/7z1805-x64.exe" -OutFile 7z.exe
-# For some reason the last letter in the destination directory is lost. So "/D=C:\\7zip0" will make files be
-# extracted to "/D=C:\\7zip".
-RUN Start-Process "c:\\7z.exe" -ArgumentList "/S", "/D=C:\\7zip0" -NoNewWindow -Wait
+# Install Microsoft Visual C++ Redistributable for Visual Studio using Chocolatey
+#RUN choco install -y vcRedist2015
+RUN choco install -y vcRedist2017
 
-# Extract msys2
-RUN Invoke-WebRequest -UseBasicParsing "http://repo.msys2.org/distrib/x86_64/msys2-base-x86_64-20180531.tar.xz" -OutFile msys2.tar.xz
-RUN C:\7zip\7z e msys2.tar.xz -Wait
-RUN C:\7zip\7z x msys2.tar -o"C:\\"
-
-# Install Microsoft Visual C++ Redistributable for Visual Studio 2015
-RUN Invoke-WebRequest -UseBasicParsing "https://download.microsoft.com/download/9/3/F/93FCF1E7-E6A4-478B-96E7-D4B285925B00/vc_redist.x64.exe" -OutFile vc_redist.x64.exe
-RUN Start-Process "c:\\vc_redist.x64.exe" -ArgumentList "/Install", "/Passive", "/NoRestart" -NoNewWindow -Wait
-
-# Switch over to using the final image.
-# Uncomment the appropriate image to use it instead.
-# Needs minimum Windos Server 1803 to workaround https://github.com/nodejs/node/issues/8897#issuecomment-429601955
-FROM microsoft/nanoserver:1803
-# FROM microsoft/windowsservercore:1803
-
-# Copy over msys and vc_redist files
-COPY --from=download "C:\\msys64" "C:\\msys64"
-# Copy over vc_redist files.
-# Are those the only ones needed? Full list in https://docs.microsoft.com/en-us/cpp/ide/determining-which-dlls-to-redistribute?view=vs-2017
-COPY --from=download "C:\\windows\\system32\\msvcp140.dll" "C:\\windows\\system32"
-COPY --from=download "C:\\windows\\system32\\vcruntime140.dll" "C:\\windows\\system32"
+# Install bazel  
+RUN choco install -y bazel
 
 # It looks like these paths cannot have escaped slashes, otherwise \\ will be passed on.
 RUN setx BAZEL_SH "C:\msys64\usr\bin\bash.exe"
 RUN setx PATH "%PATH%;c:\msys64\usr\bin"
+
+##Install Git and posh-git for advanced repo operations
+#https://hub.docker.com/r/ehong/git-windows-server
+#Install Git
+RUN choco install git.install -y 
+# Install NuGet provider
+RUN powershell -Command "Install-PackageProvider -Name NuGet -Force -Scope AllUsers -RequiredVersion 2.8.5.201 -ErrorAction Stop"
+# Set the PSGallery as a trusted repository
+RUN powershell -Command "Set-PSRepository -Name PSGallery -InstallationPolicy Trusted"
+#Install posh-git
+RUN powershell Install-Module -Name 'posh-git'
+
+
+### ToDo
+##Install Visual Studio build tools using Chocolatey (preferred, not working)
+##RUN choco install visualstudio2019buildtools -y
+#
+##Install build tools via direct web download (working)
+##https://learn.microsoft.com/en-us/visualstudio/install/build-tools-container?view=vs-2019
+#
+#RUN \
+#    # Download the Build Tools bootstrapper.
+#    curl -SL --output vs_buildtools.exe https://aka.ms/vs/16/release/vs_buildtools.exe \
+#    \
+#    # Install Build Tools with the Microsoft.VisualStudio.Workload.AzureBuildTools workload, excluding workloads and components with known issues.
+#    && (start /w vs_buildtools.exe --quiet --wait --norestart --nocache \
+#        --installPath "%ProgramFiles(x86)%\Microsoft Visual Studio\2019\BuildTools" \
+#        --add Microsoft.VisualStudio.Workload.AzureBuildTools \
+#        --remove Microsoft.VisualStudio.Component.Windows10SDK.10240 \
+#        --remove Microsoft.VisualStudio.Component.Windows10SDK.10586 \
+#        --remove Microsoft.VisualStudio.Component.Windows10SDK.14393 \
+#        --remove Microsoft.VisualStudio.Component.Windows81SDK \
+#        || IF "%ERRORLEVEL%"=="3010" EXIT 0) \
+#    \
+#    # Cleanup
+#    && del /q vs_buildtools.exe
+#
+##Test installation by compiling hello-world example (not working, complains about missing build tools)
+#RUN git clone https://github.com/bazelbuild/bazel 
+#RUN cd bazel && bazel build //examples/cpp:hello-world

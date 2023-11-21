@@ -1,12 +1,12 @@
-## Repro instructions
+## Repo instructions
 
 Example of using bazel inside a windows docker container.
 
 Note: these commands are for windows cmd.exe.
 
 - Copy a `bazel.exe` binary to this folder.
-- Build the docker image: `docker build -t bazel-windows-container:0.0.1 .`
-- Run the image with this repro: `docker run -v %cd%:C:\src -it bazel-windows-container:0.0.1`
+- Build the docker image: `docker build -t bazel-windows-container:0.0.2 .`
+- Instantiate the image: `docker run -v %cd%:C:\src -it bazel-windows-container:0.0.2`
 - Inside the container run:
 ```
 cd src
