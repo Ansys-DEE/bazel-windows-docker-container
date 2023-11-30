@@ -49,4 +49,4 @@ RUN choco install bazelisk -y
 
 # Test installation by compiling hello-world example (not working, complains about missing build tools)
 RUN git clone https://github.com/bazelbuild/bazel 
-RUN cd bazel && bazel build //examples/cpp:hello-world
+RUN cd bazel; bazel build //examples/cpp:hello-world
