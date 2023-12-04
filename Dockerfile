@@ -47,6 +47,14 @@ RUN function msys() { C:\tools\msys64\usr\bin\bash.exe @('-lc') + @Args; } \
 # Install bazelisk
 RUN choco install bazelisk -y
 
-# Test installation by compiling hello-world example (not working, complains about missing build tools)
+# Test installation by compiling hello-world example 
 RUN git clone https://github.com/bazelbuild/bazel 
 RUN cd bazel; bazel build //examples/cpp:hello-world
+
+# Enable long path support in Windows
+RUN echo 'startup --output_user_root=C:/o' | out-file -encoding ASCII C:\ProgramData\bazel.bazelrc
+RUN New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name "LongPathsEnabled" -Value 1 -PropertyType DWORD -Force
+
+# Test installation by compiling grpc client example
+RUN git clone https://github.com/mobigliani/grpc-cc-windows
+RUN cd grpc-cc-windows; bazel build //helloworld:greeter_client --verbose_failures
